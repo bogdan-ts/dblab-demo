@@ -1,0 +1,27 @@
+name: Deploy demo on tag push
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Hetzner server
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} <<EOF
+            cd /opt/dblab-demo
+
+            git fetch --tags
+            git checkout \$(git describe --tags --abbrev=0)
+
+            # Restart OpenWebUI
+            docker-compose down
+            docker-compose up -d
+
+            # Reload nginx
+            nginx -s reload
+EOF

@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    environment:
+      - OLLAMA_API_BASE_URL=${OLLAMA_BASE_URL}
+      - DATABASE_URL=${DATABASE_URL}
+      - WEBUI_AUTH=false
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+    ports:
+      - "3000:8080"
+    restart: unless-stopped
+    networks:
+      - dblab-net
+networks:
+  dblab-net:
+    external: true
