@@ -3,6 +3,8 @@ version: "3.9"
 services:
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
+    env_file:
+      - .env
     environment:
       - OLLAMA_API_BASE_URL=${OLLAMA_BASE_URL}
       - DATABASE_URL=${DATABASE_URL}
