@@ -76,17 +76,26 @@ jobs:
           CLONE_PORT=$(echo $CLONE_INFO | jq -r '.db.port')
 
           echo "Found DBLab clone port: $CLONE_PORT"
-
           echo "CLONE_PORT=$CLONE_PORT" >> $GITHUB_ENV
 
-      - name: Run OpenWebUI with DBLab clone
-        run: |
-          PORT=$((3000 + ${{ github.event.pull_request.number }}))
+      - name: Deploy OpenWebUI on remote server
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
 
-          docker run -d --name openwebui-pr-${{ github.event.pull_request.number }} \
-            -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@host.docker.internal:${CLONE_PORT}/postgres" \
-            -e WEBUI_AUTH=false \
-            -p $PORT:8080 \
-            ghcr.io/open-webui/open-webui:main
+            echo "Deploying OpenWebUI for PR ${{ github.event.pull_request.number }}"
 
-          echo "OpenWebUI is running on port $PORT"
+            cd /opt/dblab-demo
+
+            echo "DATABASE_URL=postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/postgres" > .env
+            echo "OLLAMA_BASE_URL=http://localhost:11434" >> .env
+
+            docker-compose pull
+            docker-compose up -d --force-recreate
+
+            docker ps --filter "name=openwebui"
