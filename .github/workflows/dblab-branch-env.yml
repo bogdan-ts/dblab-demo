@@ -36,8 +36,8 @@ jobs:
               "id": "pr-${{ github.event.pull_request.number }}-clone",
               "branch": "pr-${{ github.event.pull_request.number }}",
               "db": {
-                "username": "'"$DBLAB_DB_USERNAME"'",
-                "password": "'"$DBLAB_DB_PASSWORD"'"
+                "username": "${{ secrets.DBLAB_DB_USERNAME }}",
+                "password": "${{ secrets.DBLAB_DB_PASSWORD }}"
               }
             }' \
             ${{ secrets.DBLAB_API_URL }}/clone
