@@ -34,6 +34,10 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{
               "id": "pr-${{ github.event.pull_request.number }}-clone",
-              "branch": "pr-${{ github.event.pull_request.number }}"
+              "branch": "pr-${{ github.event.pull_request.number }}",
+              "db": {
+                "username": "'"$DBLAB_DB_USERNAME"'",
+                "password": "'"$DBLAB_DB_PASSWORD"'",
+              }
             }' \
             ${{ secrets.DBLAB_API_URL }}/clone
