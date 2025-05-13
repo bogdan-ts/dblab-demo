@@ -78,24 +78,51 @@ jobs:
           echo "Found DBLab clone port: $CLONE_PORT"
           echo "CLONE_PORT=$CLONE_PORT" >> $GITHUB_ENV
 
-      - name: Deploy OpenWebUI on remote server
+      - name: Deploy OpenWebUI for PR on remote server
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
           script: |
             set -e
 
-            echo "Deploying OpenWebUI for PR ${{ github.event.pull_request.number }}"
+            PR_ID=pr-${{ github.event.pull_request.number }}
+            CLONE_PORT=${{ env.CLONE_PORT }}
+            INSTANCE_DIR="/opt/dblab-demo/instances/$PR_ID"
+            CONTAINER_NAME="openwebui_${PR_ID}"
+            SUBDOMAIN="${PR_ID}.demo.tsechoev.dev"
 
-            cd /opt/dblab-demo
+            echo "Creating instance directory for $PR_ID"
+            mkdir -p $INSTANCE_DIR
 
-            echo "DATABASE_URL=postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/postgres" > .env
-            echo "OLLAMA_BASE_URL=http://localhost:11434" >> .env
+            echo "DATABASE_URL=postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/postgres" > $INSTANCE_DIR/.env
+            echo "OLLAMA_BASE_URL=http://localhost:11434" >> $INSTANCE_DIR/.env
 
-            docker-compose pull
-            docker-compose up -d --force-recreate
+            echo "Starting OpenWebUI container: $CONTAINER_NAME"
+            docker run -d --name $CONTAINER_NAME --env-file $INSTANCE_DIR/.env --network dblab-net -p 0:8080 ghcr.io/open-webui/open-webui:main
 
-            docker ps --filter "name=openwebui"
+            CONTAINER_PORT=$(docker inspect --format='{{(index (index .NetworkSettings.Ports "8080/tcp") 0).HostPort}}' $CONTAINER_NAME)
+
+            echo "Container $CONTAINER_NAME is up at port $CONTAINER_PORT"
+
+            echo "Configuring nginx for $SUBDOMAIN"
+            NGINX_CONF="/etc/nginx/sites-enabled/${SUBDOMAIN}.conf"
+
+            cat <<EOF | sudo tee $NGINX_CONF
+server {
+    listen 80;
+    server_name $SUBDOMAIN;
+
+    location / {
+        proxy_pass http://127.0.0.1:$CONTAINER_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+
+            echo "Reloading nginx..."
+            sudo nginx -s reload
