@@ -1,0 +1,39 @@
+name: Create DBLab Branch Env
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  create-branch-and-clone:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create DBLab branch
+        run: |
+          echo "Creating DBLab branch for PR #${{ github.event.pull_request.number }}"
+
+          curl -s -X POST \
+            -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "branchName": "pr-${{ github.event.pull_request.number }}",
+              "baseBranch": "main"
+            }' \
+            ${{ secrets.DBLAB_API_URL }}/branch
+
+      - name: Create DBLab clone
+        run: |
+          echo "Creating DBLab clone for branch pr-${{ github.event.pull_request.number }}"
+
+          curl -s -X POST \
+            -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "id": "pr-${{ github.event.pull_request.number }}-clone",
+              "branch": "pr-${{ github.event.pull_request.number }}"
+            }' \
+            ${{ secrets.DBLAB_API_URL }}/clone

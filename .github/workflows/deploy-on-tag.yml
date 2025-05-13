@@ -3,7 +3,7 @@ name: Deploy demo on tag push
 on:
   push:
     tags:
-      - '*'
+      - "*"
 
 jobs:
   deploy:
@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Deploy to Hetzner server
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} <<EOF
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}
             cd /opt/dblab-demo
 
             git fetch --tags
@@ -24,4 +24,3 @@ jobs:
 
             # Reload nginx
             nginx -s reload
-EOF

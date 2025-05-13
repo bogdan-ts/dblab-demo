@@ -1,0 +1,26 @@
+name: Cleanup DBLab Branch Env
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup-branch-and-clone:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Cleanup DBLab clone
+        run: |
+          echo "Deleting DBLab clone for PR #${{ github.event.pull_request.number }}"
+
+          curl -s -X DELETE \
+            -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" \
+            ${{ secrets.DBLAB_API_URL }}/clone/pr-${{ github.event.pull_request.number }}-clone || echo "Clone cleanup failed (probably doesn't exist)"
+
+      - name: Cleanup DBLab branch
+        run: |
+          echo "Deleting DBLab branch for PR #${{ github.event.pull_request.number }}"
+
+          curl -s -X DELETE \
+            -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" \
+            ${{ secrets.DBLAB_API_URL }}/branch/pr-${{ github.event.pull_request.number }} || echo "Branch cleanup failed (probably doesn't exist)"
