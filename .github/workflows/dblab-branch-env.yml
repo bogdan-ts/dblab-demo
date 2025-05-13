@@ -91,7 +91,7 @@ jobs:
             CLONE_PORT=${{ env.CLONE_PORT }}
             INSTANCE_DIR="/opt/dblab-demo/instances/$PR_ID"
             CONTAINER_NAME="openwebui_${PR_ID}"
-            SUBDOMAIN="${PR_ID}.demo.tsechoev.dev"
+            SUBDOMAIN="${PR_ID}.demo-dblab.tsechoev.dev"
 
             echo "Creating instance directory for $PR_ID"
             mkdir -p $INSTANCE_DIR
