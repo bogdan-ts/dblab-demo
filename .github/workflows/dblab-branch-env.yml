@@ -33,7 +33,7 @@ jobs:
             -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{
-              "id": "pr-${{ github.event.pull_request.number }}-clone",
+              "id": "pr_${{ github.event.pull_request.number }}_clone",
               "branch": "pr-${{ github.event.pull_request.number }}",
               "db": {
                 "username": "${{ secrets.DBLAB_DB_USERNAME }}",
@@ -41,3 +41,52 @@ jobs:
               }
             }' \
             ${{ secrets.DBLAB_API_URL }}/clone
+      - name: Wait for DBLab clone readiness
+        run: |
+          CLONE_ID="pr_${{ github.event.pull_request.number }}_clone"
+          API_URL="${{ secrets.DBLAB_API_URL }}/clone/${CLONE_ID}"
+
+          echo "Waiting for clone $CLONE_ID to become ready..."
+
+          for i in {1..20}; do
+            STATUS=$(curl -s -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" $API_URL | jq -r '.status.code')
+
+            echo "Status: $STATUS"
+
+            if [ "$STATUS" == "OK" ]; then
+              echo "Clone is ready."
+              break
+            fi
+
+            if [ $i -eq 20 ]; then
+              echo "Timeout waiting for clone readiness"
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+      - name: Get DBLab clone port
+        id: get-clone-port
+        run: |
+          CLONE_ID="pr_${{ github.event.pull_request.number }}_clone"
+          API_URL="${{ secrets.DBLAB_API_URL }}/clone/${CLONE_ID}"
+
+          CLONE_INFO=$(curl -s -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" $API_URL)
+          CLONE_PORT=$(echo $CLONE_INFO | jq -r '.db.port')
+
+          echo "Found DBLab clone port: $CLONE_PORT"
+
+          echo "CLONE_PORT=$CLONE_PORT" >> $GITHUB_ENV
+
+      - name: Run OpenWebUI with DBLab clone
+        run: |
+          PORT=$((3000 + ${{ github.event.pull_request.number }}))
+
+          docker run -d --name openwebui-pr-${{ github.event.pull_request.number }} \
+            -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@host.docker.internal:${CLONE_PORT}/postgres" \
+            -e WEBUI_AUTH=false \
+            -p $PORT:8080 \
+            ghcr.io/open-webui/open-webui:main
+
+          echo "OpenWebUI is running on port $PORT"
