@@ -90,6 +90,7 @@ jobs:
             set -e
             PR_NUM=${{ github.event.pull_request.number }}
             CLONE_PORT=${{ env.CLONE_PORT }}
+            CLONE_DB_NAME=${{ env.CLONE_DB_NAME }}
             CONTAINER=openwebui_pr_${PR_NUM}
 
             echo "Stopping any existing container $CONTAINER"
@@ -99,7 +100,7 @@ jobs:
             docker run -d \
               --name $CONTAINER \
               --network dblab-net \
-              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/${CLONE_DB_NAME}" \
+              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@localhost:${CLONE_PORT}/${CLONE_DB_NAME}" \
               -e OLLAMA_API_BASE_URL="http://localhost:11434" \
               --label "traefik.enable=true" \
               --label "traefik.docker.network=dblab-net" \
