@@ -66,17 +66,17 @@ jobs:
             sleep 5
           done
 
-      - name: Get DBLab clone port
-        id: get-clone-port
+      - name: Get DBLab clone port and name
+        id: get-clone-info
         run: |
           CLONE_ID="pr_${{ github.event.pull_request.number }}_clone"
           API_URL="${{ secrets.DBLAB_API_URL }}/clone/${CLONE_ID}"
 
           CLONE_INFO=$(curl -s -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" $API_URL)
-          CLONE_PORT=$(echo $CLONE_INFO | jq -r '.db.port')
+          echo "$CLONE_INFO" | jq -r '.db.port'     | xargs -I{} echo "CLONE_PORT={}" >> $GITHUB_ENV
+          echo "$CLONE_INFO" | jq -r '.db.dbName'   | xargs -I{} echo "CLONE_DB_NAME={}" >> $GITHUB_ENV
 
-          echo "Found DBLab clone port: $CLONE_PORT"
-          echo "CLONE_PORT=$CLONE_PORT" >> $GITHUB_ENV
+          echo "Found DB port $CLONE_PORT and DB name $CLONE_DB_NAME"
 
       - name: Deploy OpenWebUI PR instance
         if: ${{ github.event_name == 'pull_request' }}
@@ -99,9 +99,10 @@ jobs:
             docker run -d \
               --name $CONTAINER \
               --network dblab-net \
-              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/postgres" \
+              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/${CLONE_DB_NAME}" \
               -e OLLAMA_API_BASE_URL="http://localhost:11434" \
               --label "traefik.enable=true" \
+              --label "traefik.docker.network=dblab-net" \
               --label "traefik.http.routers.pr${PR_NUM}.rule=Host(\`pr-${PR_NUM}.demo-dblab.tsechoev.dev\`)" \
               --label "traefik.http.routers.pr${PR_NUM}.entrypoints=websecure" \
               --label "traefik.http.routers.pr${PR_NUM}.tls.certresolver=cloudflare" \
