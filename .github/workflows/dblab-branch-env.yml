@@ -100,8 +100,8 @@ jobs:
             docker run -d \
               --name $CONTAINER \
               --network dblab-net \
-              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@localhost:${CLONE_PORT}/${CLONE_DB_NAME}" \
-              -e OLLAMA_API_BASE_URL="http://localhost:11434" \
+              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/${CLONE_DB_NAME}" \
+              -e OLLAMA_API_BASE_URL="http://ollama:11434" \
               --label "traefik.enable=true" \
               --label "traefik.docker.network=dblab-net" \
               --label "traefik.http.routers.pr${PR_NUM}.rule=Host(\`pr-${PR_NUM}.demo-dblab.tsechoev.dev\`)" \
