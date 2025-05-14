@@ -5,39 +5,55 @@ on:
     types: [closed]
 
 jobs:
-  cleanup-dblab-env:
+  cleanup:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Delete DBLab clone
+      - name: Checkout (for ${{ github.event }})
+        uses: actions/checkout@v4
+
+      - name: SSH cleanup on remote host
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            PR_NUM=${{ github.event.pull_request.number }}
+            CLONE_ID="pr_${PR_NUM}_clone"
+            APP_CONTAINER="openwebui_pr_${PR_NUM}"
+
+            echo "🛑 Stopping and removing OpenWebUI container $APP_CONTAINER"
+            docker rm -f $APP_CONTAINER || true
+
+            echo "🛑 Disconnecting clone from dblab-net"
+            docker network disconnect dblab-net $CLONE_ID || true
+
+            echo "🛑 Removing DBLab clone container $CLONE_ID"
+            docker rm -f $CLONE_ID || true
+
+      - name: Delete DBLab clone via API
+        env:
+          DTLAB_TOKEN: ${{ secrets.DBLAB_TOKEN }}
+          API_URL: ${{ secrets.DBLAB_API_URL }}
         run: |
           CLONE_ID="pr_${{ github.event.pull_request.number }}_clone"
-
-          echo "Deleting DBLab clone: $CLONE_ID"
-
+          echo "🔐 Deleting DBLab clone $CLONE_ID"
           curl -s -X DELETE \
-            -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" \
-            ${{ secrets.DBLAB_API_URL }}/clone/${CLONE_ID} || echo "Clone delete request failed or not found, ignoring."
+            -H "Verification-Token: $DTLAB_TOKEN" \
+            "$API_URL/clone/$CLONE_ID" \
+          && echo "Deleted clone $CLONE_ID" || true
 
-      - name: Delete DBLab branch
+      - name: Delete DBLab branch via API
+        env:
+          DTLAB_TOKEN: ${{ secrets.DBLAB_TOKEN }}
+          API_URL: ${{ secrets.DBLAB_API_URL }}
         run: |
-          BRANCH_ID="pr-${{ github.event.pull_request.number }}"
-
-          echo "Deleting DBLab branch: $BRANCH_ID"
-
+          BRANCH="pr-${{ github.event.pull_request.number }}"
+          echo "🔐 Deleting DBLab branch $BRANCH"
           curl -s -X DELETE \
-            -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" \
-            ${{ secrets.DBLAB_API_URL }}/branch/${BRANCH_ID} || echo "Branch delete request failed or not found, ignoring."
-
-      - name: Stop & remove OpenWebUI container
-        run: |
-          CONTAINER_NAME="openwebui-pr-${{ github.event.pull_request.number }}"
-
-          if docker ps -a --format '{{.Names}}' | grep -q "$CONTAINER_NAME"; then
-            echo "Stopping container: $CONTAINER_NAME"
-            docker stop $CONTAINER_NAME || true
-            echo "Removing container: $CONTAINER_NAME"
-            docker rm $CONTAINER_NAME || true
-          else
-            echo "No container named $CONTAINER_NAME found, skipping."
-          fi
+            -H "Verification-Token: $DTLAB_TOKEN" \
+            "$API_URL/branch/$BRANCH" \
+          && echo "Deleted branch $BRANCH" || true
