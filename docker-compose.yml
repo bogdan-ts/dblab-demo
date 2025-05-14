@@ -10,6 +10,8 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - WEBUI_AUTH=false
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+      - VIRTUAL_HOST=demo-dblab.tsechoev.dev
+      - LETSENCRYPT_HOST=demo-dblab.tsechoev.dev
     ports:
       - "3000:8080"
     restart: unless-stopped
