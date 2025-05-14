@@ -86,8 +86,6 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
-          envs: |
-            DBLAB_HOST=${{ secrets.DBLAB_HOST }}
           script: |
             set -e
 
@@ -96,8 +94,8 @@ jobs:
             CLONE_DB_NAME=${{ env.CLONE_DB_NAME }}
             CONTAINER=openwebui_pr_${PR_NUM}
 
-            if [ -n "$DBLAB_HOST" ]; then
-              DB_HOST="$DBLAB_HOST"
+            if [ -n ${{ secrets.DBLAB_HOST }} ]; then
+              DB_HOST=${{ secrets.DBLAB_HOST }}
             else
               DB_HOST="pr_${PR_NUM}_clone"
               docker network connect dblab-net pr_${PR_NUM}_clone || true
