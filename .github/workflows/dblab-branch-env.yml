@@ -33,7 +33,84 @@ jobs:
             -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{
-              "id": "pr-${{ github.event.pull_request.number }}-clone",
-              "branch": "pr-${{ github.event.pull_request.number }}"
+              "id": "pr_${{ github.event.pull_request.number }}_clone",
+              "branch": "pr-${{ github.event.pull_request.number }}",
+              "db": {
+                "username": "${{ secrets.DBLAB_DB_USERNAME }}",
+                "password": "${{ secrets.DBLAB_DB_PASSWORD }}"
+              }
             }' \
             ${{ secrets.DBLAB_API_URL }}/clone
+      - name: Wait for DBLab clone readiness
+        run: |
+          CLONE_ID="pr_${{ github.event.pull_request.number }}_clone"
+          API_URL="${{ secrets.DBLAB_API_URL }}/clone/${CLONE_ID}"
+
+          echo "Waiting for clone $CLONE_ID to become ready..."
+
+          for i in {1..20}; do
+            STATUS=$(curl -s -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" $API_URL | jq -r '.status.code')
+
+            echo "Status: $STATUS"
+
+            if [ "$STATUS" == "OK" ]; then
+              echo "Clone is ready."
+              break
+            fi
+
+            if [ $i -eq 20 ]; then
+              echo "Timeout waiting for clone readiness"
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+      - name: Get DBLab clone port and name
+        id: get-clone-info
+        run: |
+          CLONE_ID="pr_${{ github.event.pull_request.number }}_clone"
+          API_URL="${{ secrets.DBLAB_API_URL }}/clone/${CLONE_ID}"
+
+          CLONE_INFO=$(curl -s -H "Verification-Token: ${{ secrets.DBLAB_TOKEN }}" $API_URL)
+          echo "$CLONE_INFO" | jq -r '.db.port'     | xargs -I{} echo "CLONE_PORT={}" >> $GITHUB_ENV
+          echo "$CLONE_INFO" | jq -r '.db.dbName'   | xargs -I{} echo "CLONE_DB_NAME={}" >> $GITHUB_ENV
+
+          echo "Found DB port $CLONE_PORT and DB name $CLONE_DB_NAME"
+
+      - name: Deploy OpenWebUI PR instance
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            PR_NUM=${{ github.event.pull_request.number }}
+            CLONE_PORT=${{ env.CLONE_PORT }}
+            CLONE_DB_NAME=${{ env.CLONE_DB_NAME }}
+            CONTAINER=openwebui_pr_${PR_NUM}
+
+            echo "Stopping any existing container $CONTAINER"
+            docker rm -f $CONTAINER || true
+
+            docker network connect dblab-net pr_${PR_NUM}_clone || true
+
+            echo "Starting OpenWebUI container $CONTAINER for PR #${PR_NUM}"
+            docker run -d \
+              --name $CONTAINER \
+              --network dblab-net \
+              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@pr_${PR_NUM}_clone:${CLONE_PORT}/${CLONE_DB_NAME}" \
+              -e OLLAMA_BASE_URL="http://ollama:11434" \
+              --label "traefik.enable=true" \
+              --label "traefik.docker.network=dblab-net" \
+              --label "traefik.http.routers.pr${PR_NUM}.rule=Host(\`pr-${PR_NUM}.demo-dblab.tsechoev.dev\`)" \
+              --label "traefik.http.routers.pr${PR_NUM}.entrypoints=websecure" \
+              --label "traefik.http.routers.pr${PR_NUM}.tls.certresolver=cloudflare" \
+              --label "traefik.http.services.pr${PR_NUM}.loadbalancer.server.port=8080" \
+              ghcr.io/open-webui/open-webui:main
+
+
+            echo "PR #${PR_NUM} deployed at https://pr-${PR_NUM}.demo-dblab.tsechoev.dev"
