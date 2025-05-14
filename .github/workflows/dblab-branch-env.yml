@@ -110,4 +110,5 @@ jobs:
               --label "traefik.http.services.pr${PR_NUM}.loadbalancer.server.port=8080" \
               ghcr.io/open-webui/open-webui:main
 
+              
             echo "PR #${PR_NUM} deployed at https://pr-${PR_NUM}.demo-dblab.tsechoev.dev"
