@@ -1,22 +1,44 @@
 version: "3.9"
 
 services:
-  openwebui:
-    image: ghcr.io/open-webui/open-webui:main
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./certs:/certs
+
     env_file:
       - .env
-    environment:
-      - OLLAMA_API_BASE_URL=${OLLAMA_BASE_URL}
-      - DATABASE_URL=${DATABASE_URL}
-      - WEBUI_AUTH=false
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
-      - VIRTUAL_HOST=demo-dblab.tsechoev.dev
-      - LETSENCRYPT_HOST=demo-dblab.tsechoev.dev
-    ports:
-      - "3000:8080"
-    restart: unless-stopped
+
     networks:
       - dblab-net
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui_prod
+    restart: unless-stopped
+
+    env_file:
+      - prod.env
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.openwebui.rule=Host(`demo-dblab.tsechoev.dev`)"
+      - "traefik.http.routers.openwebui.entrypoints=websecure"
+      - "traefik.http.routers.openwebui.tls.certresolver=cloudflare"
+      - "traefik.http.services.openwebui.loadbalancer.server.port=8080"
+
+    networks:
+      - dblab-net
+
 networks:
   dblab-net:
     external: true
