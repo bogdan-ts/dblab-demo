@@ -86,24 +86,32 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
+          envs: |
+            DBLAB_HOST=${{ secrets.DBLAB_HOST }}
           script: |
             set -e
+
             PR_NUM=${{ github.event.pull_request.number }}
             CLONE_PORT=${{ env.CLONE_PORT }}
             CLONE_DB_NAME=${{ env.CLONE_DB_NAME }}
             CONTAINER=openwebui_pr_${PR_NUM}
 
+            if [ -n "$DBLAB_HOST" ]; then
+              DB_HOST="$DBLAB_HOST"
+            else
+              DB_HOST="pr_${PR_NUM}_clone"
+              docker network connect dblab-net pr_${PR_NUM}_clone || true
+            fi
+
             echo "Stopping any existing container $CONTAINER"
             docker rm -f $CONTAINER || true
-
-            docker network connect dblab-net pr_${PR_NUM}_clone || true
 
             echo "Starting OpenWebUI container $CONTAINER for PR #${PR_NUM}"
             docker run -d \
               --name $CONTAINER \
               --network dblab-net \
-              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@pr_${PR_NUM}_clone:${CLONE_PORT}/${CLONE_DB_NAME}" \
-              -e OLLAMA_BASE_URL="http://ollama:11434" \
+              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@${DB_HOST}:${CLONE_PORT}/${CLONE_DB_NAME}" \
+              -e OLLAMA_API_BASE_URL="http://ollama:11434" \
               --label "traefik.enable=true" \
               --label "traefik.docker.network=dblab-net" \
               --label "traefik.http.routers.pr${PR_NUM}.rule=Host(\`pr-${PR_NUM}.demo-dblab.tsechoev.dev\`)" \
@@ -112,5 +120,4 @@ jobs:
               --label "traefik.http.services.pr${PR_NUM}.loadbalancer.server.port=8080" \
               ghcr.io/open-webui/open-webui:main
 
-
-            echo "PR #${PR_NUM} deployed at https://pr-${PR_NUM}.demo-dblab.tsechoev.dev"
+            echo "✅ PR #${PR_NUM} deployed at https://pr-${PR_NUM}.demo-dblab.tsechoev.dev"
