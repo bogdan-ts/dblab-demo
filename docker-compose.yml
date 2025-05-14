@@ -1,43 +1,20 @@
 version: "3.9"
 
 services:
-  traefik:
-    image: traefik:latest
-    container_name: traefik
-    restart: unless-stopped
-
-    ports:
-      - "80:80"
-      - "443:443"
-
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./config/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./certs:/certs
-
-    env_file:
-      - .env
-
-    networks:
-      - dblab-net
-
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
-    container_name: openwebui_prod
-    restart: unless-stopped
-
+    container_name: openwebui
     env_file:
-      - prod.env
-
+      - .env
+    networks:
+      - dblab-net
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=dblab-net"
       - "traefik.http.routers.openwebui.rule=Host(`demo-dblab.tsechoev.dev`)"
       - "traefik.http.routers.openwebui.entrypoints=websecure"
       - "traefik.http.routers.openwebui.tls.certresolver=cloudflare"
       - "traefik.http.services.openwebui.loadbalancer.server.port=8080"
-
-    networks:
-      - dblab-net
 
 networks:
   dblab-net:
