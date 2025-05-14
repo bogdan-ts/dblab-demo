@@ -99,9 +99,8 @@ jobs:
             echo "Starting OpenWebUI container $CONTAINER for PR #${PR_NUM}"
             docker run -d \
               --name $CONTAINER \
-              --network dblab-net \
-              --add-host host.docker.internal:host-gateway \
-              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@host.docker.internal:${CLONE_PORT}/${CLONE_DB_NAME}" \
+              --network container:pr_${PR_NUM}_clone \
+              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/${CLONE_DB_NAME}" \
               -e OLLAMA_API_BASE_URL="http://ollama:11434" \
               --label "traefik.enable=true" \
               --label "traefik.docker.network=dblab-net" \
