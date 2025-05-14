@@ -78,48 +78,34 @@ jobs:
           echo "Found DBLab clone port: $CLONE_PORT"
           echo "CLONE_PORT=$CLONE_PORT" >> $GITHUB_ENV
 
-      - name: Deploy OpenWebUI container for PR on remote server
+      - name: Deploy OpenWebUI PR instance
+        if: ${{ github.event_name == 'pull_request' }}
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
             set -e
-
-            PR_ID=pr-${{ github.event.pull_request.number }}
+            PR_NUM=${{ github.event.pull_request.number }}
             CLONE_PORT=${{ env.CLONE_PORT }}
-            CONTAINER_NAME="openwebui_${PR_ID}"
+            CONTAINER=openwebui_pr_${PR_NUM}
 
-            echo "DATABASE_URL=postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/postgres" > /tmp/.env_${PR_ID}
-            echo "OLLAMA_BASE_URL=http://localhost:11434" >> /tmp/.env_${PR_ID}
+            echo "Stopping any existing container $CONTAINER"
+            docker rm -f $CONTAINER || true
 
-            echo "Running OpenWebUI container $CONTAINER_NAME"
-            docker run -d --name $CONTAINER_NAME --env-file /tmp/.env_${PR_ID} --network dblab-net -p 0:8080 ghcr.io/open-webui/open-webui:main
+            echo "Starting OpenWebUI container $CONTAINER for PR #${PR_NUM}"
+            docker run -d \
+              --name $CONTAINER \
+              --network dblab-net \
+              -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/postgres" \
+              -e OLLAMA_API_BASE_URL="http://localhost:11434" \
+              --label "traefik.enable=true" \
+              --label "traefik.http.routers.pr${PR_NUM}.rule=Host(\`pr-${PR_NUM}.demo-dblab.tsechoev.dev\`)" \
+              --label "traefik.http.routers.pr${PR_NUM}.entrypoints=websecure" \
+              --label "traefik.http.routers.pr${PR_NUM}.tls.certresolver=cloudflare" \
+              --label "traefik.http.services.pr${PR_NUM}.loadbalancer.server.port=8080" \
+              ghcr.io/open-webui/open-webui:main
 
-            CONTAINER_PORT=$(docker inspect --format='{{(index (index .NetworkSettings.Ports "8080/tcp") 0).HostPort}}' $CONTAINER_NAME)
-
-            echo "OpenWebUI is up at port $CONTAINER_PORT"
-
-            echo "Generating nginx config for $PR_ID"
-            mkdir -p /tmp/nginx-pr-configs
-
-            cat > /tmp/nginx-pr-configs/${PR_ID}.conf <<EOF
-            server {
-                listen 80;
-                server_name ${PR_ID}.demo-dblab.tsechoev.dev;
-
-                location / {
-                    proxy_pass http://127.0.0.1:${CONTAINER_PORT};
-                    proxy_set_header Host \$host;
-                    proxy_set_header X-Real-IP \$remote_addr;
-                    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto \$scheme;
-                }
-            }
-            EOF
-
-            echo "Running nginx container for $PR_ID"
-            docker run -d --name nginx_${PR_ID} --network host -v /tmp/nginx-pr-configs:/etc/nginx/conf.d:ro nginx:alpine
-
-            echo "Done. Access via http://${PR_ID}.demo.tsechoev.dev"
+            echo "PR #${PR_NUM} deployed at https://pr-${PR_NUM}.demo-dblab.tsechoev.dev"
