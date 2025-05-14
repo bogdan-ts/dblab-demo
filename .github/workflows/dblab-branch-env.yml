@@ -100,6 +100,7 @@ jobs:
             docker run -d \
               --name $CONTAINER \
               --network dblab-net \
+              --add-host host.docker.internal:host-gateway \
               -e DATABASE_URL="postgresql://${{ secrets.DBLAB_DB_USERNAME }}:${{ secrets.DBLAB_DB_PASSWORD }}@127.0.0.1:${CLONE_PORT}/${CLONE_DB_NAME}" \
               -e OLLAMA_API_BASE_URL="http://ollama:11434" \
               --label "traefik.enable=true" \
@@ -110,5 +111,5 @@ jobs:
               --label "traefik.http.services.pr${PR_NUM}.loadbalancer.server.port=8080" \
               ghcr.io/open-webui/open-webui:main
 
-              
+
             echo "PR #${PR_NUM} deployed at https://pr-${PR_NUM}.demo-dblab.tsechoev.dev"
